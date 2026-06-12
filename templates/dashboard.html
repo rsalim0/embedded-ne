@@ -3,92 +3,126 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>BENAX · Speaker Tracking Dashboard</title>
+<title>benax // speaker-tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3240;
-    --txt:#e6edf3; --dim:#8b949e; --green:#2ea043; --amber:#d29922;
-    --red:#da3633; --blue:#388bfd; --accent:#58a6ff;
+    --bg:#000000; --panel:#070708; --panel2:#0b0c0e; --line:#17191c; --line2:#222529;
+    --txt:#f4f5f6; --txt2:#c8ccd0; --dim:#5a6068; --dimmer:#34383d;
+    --accent:#ffffff; --good:#e8eaed; --warn:#caa45a; --bad:#c45c5c;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-       background:var(--bg);color:var(--txt)}
-  header{display:flex;align-items:center;gap:12px;padding:14px 22px;
-         border-bottom:1px solid var(--line);background:var(--panel)}
-  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
-  header .sub{color:var(--dim);font-size:12px}
-  .dot{width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block}
-  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
-  .wrap{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+  html,body{margin:0;background:var(--bg);color:var(--txt)}
+  body{font-family:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+       font-size:13px;letter-spacing:.2px;
+       background-image:radial-gradient(1200px 600px at 70% -10%, #0c0e11 0%, #000 60%);}
+  ::selection{background:#2a2e33;color:#fff}
+  /* scrollbars */
+  *::-webkit-scrollbar{width:8px;height:8px}
+  *::-webkit-scrollbar-thumb{background:#1c1f23;border-radius:4px}
+  *::-webkit-scrollbar-track{background:transparent}
+
+  header{display:flex;align-items:center;gap:14px;padding:14px 22px;
+         border-bottom:1px solid var(--line);background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+  header .prompt{color:var(--dim)}
+  header .prompt b{color:var(--txt);font-weight:600}
+  header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+  .cursor{display:inline-block;width:8px;height:15px;background:var(--txt);margin-left:2px;
+          animation:blink 1.1s steps(1) infinite;vertical-align:-2px}
+  @keyframes blink{50%{opacity:0}}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--bad);display:inline-block;
+       box-shadow:0 0 0 0 rgba(255,255,255,0)}
+  .dot.on{background:#e6e8ea;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(230,232,234,.5)}70%{box-shadow:0 0 0 6px rgba(230,232,234,0)}}
+  .spacer{margin-left:auto}
+  .muted{color:var(--dim)}
+
+  .wrap{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;padding:14px;max-width:1560px;margin:0 auto}
   @media(max-width:1000px){.wrap{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
-            margin:0;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .col{display:flex;flex-direction:column;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .panel>h2{font-size:11px;letter-spacing:1.4px;color:var(--dim);text-transform:uppercase;
+            margin:0;padding:10px 14px;border-bottom:1px solid var(--line);
+            display:flex;align-items:center;gap:8px}
+  .panel>h2:before{content:"▌";color:var(--dimmer)}
+
   .feed{position:relative;background:#000;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
-  .feed img{width:100%;height:100%;object-fit:contain}
-  .badge{position:absolute;top:12px;left:12px;padding:6px 12px;border-radius:20px;
-         font-weight:700;font-size:13px;letter-spacing:.5px}
-  .badge.lock{background:rgba(46,160,67,.18);color:#3fb950;border:1px solid #3fb950}
-  .badge.search{background:rgba(210,153,34,.18);color:#e3b341;border:1px solid #e3b341}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
-  .card{background:var(--panel2);padding:14px 16px}
-  .card .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
-  .card .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
-  .v.small{font-size:16px}
-  .gaugewrap{padding:14px 16px;background:var(--panel2)}
-  .gauge{position:relative;height:14px;background:#0d1117;border-radius:8px;border:1px solid var(--line);overflow:hidden}
-  .gauge .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--dim)}
-  .gauge .dead{position:absolute;top:0;bottom:0;background:rgba(56,139,253,.12)}
-  .gauge .mark{position:absolute;top:-3px;width:6px;height:20px;border-radius:3px;background:var(--accent);
-               transition:left .15s ease}
-  .glabel{display:flex;justify-content:space-between;color:var(--dim);font-size:10px;margin-top:6px}
-  .servo{padding:16px;background:var(--panel2);display:flex;align-items:center;gap:18px}
-  .dial{position:relative;width:96px;height:96px;flex:0 0 auto}
-  .dial svg{transform:rotate(0deg)}
-  .dial .ang{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-             font-size:20px;font-weight:700}
-  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
-  th{position:sticky;top:0;background:var(--panel);color:var(--dim);text-align:left;
-     font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);font-size:10px;
-     text-transform:uppercase;letter-spacing:.5px}
-  td{padding:7px 12px;border-bottom:1px solid #20262e}
-  .logbox{max-height:340px;overflow:auto}
-  .pill{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
-  .s-MOVED_LEFT,.s-MOVED_RIGHT{background:rgba(56,139,253,.16);color:#79c0ff}
-  .s-CENTERED{background:rgba(46,160,67,.16);color:#3fb950}
-  .s-STOPPED,.s-OUT_OF_FRAME{background:rgba(139,148,158,.16);color:#b0b8c0}
-  .s-SEARCHING{background:rgba(210,153,34,.16);color:#e3b341}
-  .yes{color:#3fb950;font-weight:700}.no{color:#8b949e}
-  .controls{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--panel2);
+  .feed img{width:100%;height:100%;object-fit:contain;filter:contrast(1.04) saturate(.92)}
+  .feed:after{content:"";position:absolute;inset:0;pointer-events:none;
+              background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px)}
+  .badge{position:absolute;top:12px;left:12px;padding:5px 12px;border-radius:3px;
+         font-weight:600;font-size:12px;letter-spacing:2px;text-transform:uppercase;
+         border:1px solid var(--line2);background:rgba(0,0,0,.7)}
+  .badge.lock{color:#fff;border-color:#e8eaed;box-shadow:0 0 14px rgba(255,255,255,.12) inset}
+  .badge.search{color:var(--warn);border-color:#4a3f25}
+
+  .controls{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--panel2);
             border-top:1px solid var(--line);flex-wrap:wrap}
-  .controls button{background:#21262d;color:var(--txt);border:1px solid var(--line);
-                   border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600}
-  .controls button:hover{background:#2d333b;border-color:var(--accent)}
-  .controls button.save{background:rgba(46,160,67,.15);border-color:#2ea043;color:#3fb950}
-  .controls .cstat{color:var(--dim);font-size:12px}
+  .controls button{font-family:inherit;background:#0e0f12;color:var(--txt2);border:1px solid var(--line2);
+                   border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;letter-spacing:.5px}
+  .controls button:hover{background:#16181c;color:#fff;border-color:#3a3f45}
+  .controls button.save{color:#fff;border-color:#2f343a}
+  .controls .cstat{color:var(--dim);font-size:11px;letter-spacing:.5px}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  .card{background:var(--panel2);padding:13px 15px}
+  .card .k{color:var(--dim);font-size:10px;letter-spacing:1.2px;text-transform:uppercase}
+  .card .k:before{content:"› ";color:var(--dimmer)}
+  .card .v{font-size:21px;font-weight:600;margin-top:5px;color:#fff;
+           font-variant-numeric:tabular-nums}
+  .v.small{font-size:15px;font-weight:500}
+
+  .gaugewrap{padding:13px 15px;background:var(--panel2)}
+  .gauge{position:relative;height:12px;background:#000;border-radius:2px;border:1px solid var(--line2);overflow:hidden}
+  .gauge .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3a3f45}
+  .gauge .dead{position:absolute;top:0;bottom:0;background:rgba(255,255,255,.06)}
+  .gauge .mark{position:absolute;top:-3px;width:4px;height:18px;border-radius:2px;background:#fff;
+               transition:left .12s linear;box-shadow:0 0 8px rgba(255,255,255,.5)}
+  .glabel{display:flex;justify-content:space-between;color:var(--dim);font-size:10px;margin-top:7px;letter-spacing:.5px}
+
+  .servo{padding:15px;background:var(--panel2);display:flex;align-items:center;gap:18px}
+  .dial{position:relative;width:92px;height:92px;flex:0 0 auto}
+  .dial .ang{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+             font-size:18px;font-weight:600;color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+  th{position:sticky;top:0;background:#000;color:var(--dim);text-align:left;font-weight:500;
+     padding:8px 12px;border-bottom:1px solid var(--line2);font-size:10px;letter-spacing:.8px;text-transform:uppercase}
+  td{padding:6px 12px;border-bottom:1px solid #101215;color:var(--txt2)}
+  tr:hover td{background:#0a0b0d}
+  .logbox{max-height:330px;overflow:auto}
+  .pill{padding:2px 7px;border-radius:3px;font-size:10.5px;font-weight:500;border:1px solid var(--line2)}
+  .s-MOVED_LEFT,.s-MOVED_RIGHT{color:#fff;border-color:#33383e}
+  .s-CENTERED{color:#fff;border-color:#3a4a3a}
+  .s-STOPPED,.s-OUT_OF_FRAME{color:var(--dim);border-color:#1d2024}
+  .s-SEARCHING{color:var(--warn);border-color:#3e351f}
+  .yes{color:#fff;font-weight:600}.no{color:var(--dim)}
 </style>
 </head>
 <body>
 <header>
   <span id="liveDot" class="dot"></span>
-  <h1>BENAX · Single-Speaker Tracking</h1>
-  <span class="sub" id="brokerInfo"></span>
-  <span class="sub" style="margin-left:auto" id="fps"></span>
+  <span class="prompt"><b>benax</b>@tracker:<b>~</b>$</span>
+  <h1>single-speaker tracker</h1><span class="cursor"></span>
+  <span class="spacer muted" id="brokerInfo"></span>
+  <span class="muted" id="fps"></span>
 </header>
 
 <div class="wrap">
-  <!-- LEFT: camera + gauge -->
-  <div>
+  <!-- LEFT -->
+  <div class="col">
     <div class="panel">
-      <h2>Live Camera</h2>
+      <h2>live feed</h2>
       <div class="feed">
         <img src="/video" alt="camera feed"/>
-        <div id="badge" class="badge search">SEARCHING</div>
+        <div id="badge" class="badge search">searching</div>
       </div>
       <div class="controls">
-        <button onclick="post('/api/rotate')">⟳ Rotate 90°</button>
-        <button onclick="post('/api/flip')">⇄ Flip</button>
-        <button class="save" onclick="post('/api/save')">💾 Save orientation</button>
+        <button onclick="post('/api/rotate')">⟳ rotate 90°</button>
+        <button onclick="post('/api/flip')">⇄ flip</button>
+        <button class="save" onclick="post('/api/save')">▸ save orientation</button>
         <span class="cstat" id="orient">rotate 0° · flip off</span>
         <span class="cstat" id="saved"></span>
       </div>
@@ -98,49 +132,49 @@
           <div class="mid"></div>
           <div class="mark" id="mark" style="left:50%"></div>
         </div>
-        <div class="glabel"><span>◀ speaker left</span><span>horizontal error</span><span>speaker right ▶</span></div>
+        <div class="glabel"><span>◀ left</span><span>horizontal error</span><span>right ▶</span></div>
       </div>
     </div>
   </div>
 
-  <!-- RIGHT: status + servo + logs -->
-  <div style="display:flex;flex-direction:column;gap:16px">
+  <!-- RIGHT -->
+  <div class="col">
     <div class="panel">
-      <h2>Recognition</h2>
+      <h2>recognition</h2>
       <div class="cards">
-        <div class="card"><div class="k">Speaker</div><div class="v small" id="speaker">—</div></div>
-        <div class="card"><div class="k">Confidence</div><div class="v" id="conf">0.00</div></div>
-        <div class="card"><div class="k">Status</div><div class="v small" id="status">—</div></div>
-        <div class="card"><div class="k">Command → ESP</div><div class="v small" id="cmd">—</div></div>
-        <div class="card"><div class="k">Faces in frame</div><div class="v" id="faces">0</div></div>
-        <div class="card"><div class="k">MQTT</div><div class="v small" id="mqtt">—</div></div>
+        <div class="card"><div class="k">speaker</div><div class="v small" id="speaker">—</div></div>
+        <div class="card"><div class="k">confidence</div><div class="v" id="conf">0.00</div></div>
+        <div class="card"><div class="k">status</div><div class="v small" id="status">—</div></div>
+        <div class="card"><div class="k">cmd → esp</div><div class="v small" id="cmd">—</div></div>
+        <div class="card"><div class="k">faces</div><div class="v" id="faces">0</div></div>
+        <div class="card"><div class="k">mqtt</div><div class="v small" id="mqtt">—</div></div>
       </div>
     </div>
 
     <div class="panel">
-      <h2>Servo (ESP8266)</h2>
+      <h2>servo · esp8266</h2>
       <div class="servo">
         <div class="dial">
-          <svg width="96" height="96" viewBox="0 0 96 96">
-            <circle cx="48" cy="48" r="42" fill="none" stroke="#2a3240" stroke-width="6"/>
-            <line id="needle" x1="48" y1="48" x2="48" y2="12" stroke="#58a6ff" stroke-width="4" stroke-linecap="round"/>
-            <circle cx="48" cy="48" r="5" fill="#58a6ff"/>
+          <svg width="92" height="92" viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r="42" fill="none" stroke="#1c2024" stroke-width="5"/>
+            <line id="needle" x1="48" y1="48" x2="48" y2="12" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="48" cy="48" r="4" fill="#ffffff"/>
           </svg>
           <div class="ang" id="angle">—</div>
         </div>
         <div>
-          <div class="k" style="color:var(--dim);font-size:11px">MODE</div>
-          <div class="v small" id="mode">—</div>
-          <div class="k" style="color:var(--dim);font-size:11px;margin-top:8px">RANGE 0–180°</div>
+          <div class="k" style="color:var(--dim);font-size:10px;letter-spacing:1.2px">MODE</div>
+          <div class="v small" id="mode" style="color:#fff">—</div>
+          <div class="k" style="color:var(--dim);font-size:10px;letter-spacing:1.2px;margin-top:8px">RANGE 0–180°</div>
         </div>
       </div>
     </div>
 
     <div class="panel">
-      <h2>Evidence Log (live)</h2>
+      <h2>evidence log · live</h2>
       <div class="logbox">
         <table>
-          <thead><tr><th>Time</th><th>Status</th><th>Cmd</th><th>Conf</th><th>Faces</th><th>Lock</th></tr></thead>
+          <thead><tr><th>time</th><th>status</th><th>cmd</th><th>conf</th><th>faces</th><th>lock</th></tr></thead>
           <tbody id="logs"></tbody>
         </table>
       </div>
@@ -164,43 +198,36 @@ async function tick(){
   try{
     const r = await fetch('/api/state'); const {state:s, logs} = await r.json();
     document.getElementById('liveDot').className = 'dot' + (s.running?' on':'');
-    document.getElementById('brokerInfo').textContent = 'broker ' + s.broker + ' · threshold ' + s.threshold;
+    document.getElementById('brokerInfo').textContent = s.broker + ' · thr ' + s.threshold;
     document.getElementById('fps').textContent = s.fps + ' fps';
     document.getElementById('speaker').textContent = s.speaker_id;
     document.getElementById('conf').textContent = (s.confidence||0).toFixed(2);
-    document.getElementById('conf').style.color = s.recognized ? '#3fb950' : '#8b949e';
+    document.getElementById('conf').style.color = s.recognized ? '#ffffff' : '#5a6068';
     document.getElementById('status').textContent = s.status;
     document.getElementById('cmd').textContent = s.command;
     document.getElementById('faces').textContent = s.num_faces;
     document.getElementById('mqtt').innerHTML = fmtMqtt(s.mqtt);
-    document.getElementById('orient').textContent =
-      'rotate ' + (s.rotate||0) + '° · flip ' + (s.flip?'on':'off');
+    document.getElementById('orient').textContent = 'rotate ' + (s.rotate||0) + '° · flip ' + (s.flip?'on':'off');
 
     const badge = document.getElementById('badge');
-    if(s.recognized){badge.className='badge lock';badge.textContent='LOCKED';}
-    else{badge.className='badge search';badge.textContent=s.status==='SEARCHING'?'SEARCHING':'NO SPEAKER';}
+    if(s.recognized){badge.className='badge lock';badge.textContent='locked';}
+    else{badge.className='badge search';badge.textContent=s.status==='SEARCHING'?'searching':'no speaker';}
 
-    // error gauge (-1..1) -> 0..100%
     const e = Math.max(-1,Math.min(1, s.error_norm||0));
     document.getElementById('mark').style.left = (50 + e*50) + '%';
-    // deadband shading
-    const db = 0.08;
-    const dead = document.getElementById('dead');
+    const db = 0.08, dead = document.getElementById('dead');
     dead.style.left = (50 - db*50) + '%'; dead.style.width = (db*100) + '%';
 
-    // servo dial
     if(s.esp_angle!=null){
       document.getElementById('angle').textContent = s.esp_angle + '°';
       document.getElementById('mode').textContent = s.esp_mode;
-      const a = (s.esp_angle/180)*180 - 90;            // 0..180 -> -90..+90
-      const rad = (a-90)*Math.PI/180;                   // 0deg points up
+      const rad = ((s.esp_angle)-90-90)*Math.PI/180;
       const x = 48 + 36*Math.cos(rad), y = 48 + 36*Math.sin(rad);
-      const n = document.getElementById('needle'); n.setAttribute('x2',x.toFixed(1)); n.setAttribute('y2',y.toFixed(1));
+      const n=document.getElementById('needle'); n.setAttribute('x2',x.toFixed(1)); n.setAttribute('y2',y.toFixed(1));
     }
 
-    const tb = document.getElementById('logs');
-    tb.innerHTML = logs.map(l=>`<tr>
-      <td>${l.t}</td>
+    document.getElementById('logs').innerHTML = logs.map(l=>`<tr>
+      <td class="muted">${l.t}</td>
       <td><span class="pill s-${l.status}">${l.status}</span></td>
       <td>${l.command}</td>
       <td>${(l.confidence||0).toFixed(2)}</td>

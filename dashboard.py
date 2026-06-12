@@ -240,6 +240,8 @@ def vision_worker(cfg, use_mqtt, on_ready=None):
 # Flask app
 # --------------------------------------------------------------------------- #
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 CFG = None  # set in main(); used by /api/save
 
 

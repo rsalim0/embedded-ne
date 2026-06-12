@@ -59,6 +59,13 @@
   .s-STOPPED,.s-OUT_OF_FRAME{background:rgba(139,148,158,.16);color:#b0b8c0}
   .s-SEARCHING{background:rgba(210,153,34,.16);color:#e3b341}
   .yes{color:#3fb950;font-weight:700}.no{color:#8b949e}
+  .controls{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--panel2);
+            border-top:1px solid var(--line);flex-wrap:wrap}
+  .controls button{background:#21262d;color:var(--txt);border:1px solid var(--line);
+                   border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600}
+  .controls button:hover{background:#2d333b;border-color:var(--accent)}
+  .controls button.save{background:rgba(46,160,67,.15);border-color:#2ea043;color:#3fb950}
+  .controls .cstat{color:var(--dim);font-size:12px}
 </style>
 </head>
 <body>
@@ -77,6 +84,13 @@
       <div class="feed">
         <img src="/video" alt="camera feed"/>
         <div id="badge" class="badge search">SEARCHING</div>
+      </div>
+      <div class="controls">
+        <button onclick="post('/api/rotate')">⟳ Rotate 90°</button>
+        <button onclick="post('/api/flip')">⇄ Flip</button>
+        <button class="save" onclick="post('/api/save')">💾 Save orientation</button>
+        <span class="cstat" id="orient">rotate 0° · flip off</span>
+        <span class="cstat" id="saved"></span>
       </div>
       <div class="gaugewrap">
         <div class="gauge">
@@ -135,6 +149,16 @@
 </div>
 
 <script>
+async function post(url){
+  try{
+    const r = await fetch(url,{method:'POST'}); const d = await r.json();
+    if(url.endsWith('/save')){
+      const s=document.getElementById('saved');
+      s.textContent = d.ok ? '✓ saved to config' : '✗ save failed';
+      setTimeout(()=>{s.textContent='';}, 2500);
+    }
+  }catch(e){}
+}
 function fmtMqtt(on){return on?'<span class="yes">● connected</span>':'<span class="no">○ offline</span>';}
 async function tick(){
   try{
@@ -149,6 +173,8 @@ async function tick(){
     document.getElementById('cmd').textContent = s.command;
     document.getElementById('faces').textContent = s.num_faces;
     document.getElementById('mqtt').innerHTML = fmtMqtt(s.mqtt);
+    document.getElementById('orient').textContent =
+      'rotate ' + (s.rotate||0) + '° · flip ' + (s.flip?'on':'off');
 
     const badge = document.getElementById('badge');
     if(s.recognized){badge.className='badge lock';badge.textContent='LOCKED';}

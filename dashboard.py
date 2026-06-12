@@ -55,6 +55,8 @@ class Shared:
             "threshold": 0.4,
             "broker": "-",
             "running": True,
+            "rotate": 0,
+            "flip": False,
         }
         self.logs = deque(maxlen=60)
 
@@ -112,9 +114,10 @@ def annotate(frame, faces, speaker, conf, status, recognized):
 def vision_worker(cfg, use_mqtt, on_ready=None):
     threshold = float(cfg.get("recognition.similarity_threshold", 0.40))
     cam_index = cfg.get("camera.index", 0)
-    rotate = int(cfg.get("camera.rotate", 0))
-    flip = bool(cfg.get("camera.flip_horizontal", False))
     publish_dt = 1.0 / max(1.0, float(cfg.get("tracking.publish_hz", 12)))
+    # rotate/flip live-adjustable via the dashboard buttons (stored in shared).
+    shared.update(rotate=int(cfg.get("camera.rotate", 0)),
+                  flip=bool(cfg.get("camera.flip_horizontal", False)))
 
     profile_path = cfg.abspath(cfg.get("recognition.profile_path", "data/speaker_profile.json"))
     if not profile_path.exists():
@@ -177,7 +180,7 @@ def vision_worker(cfg, use_mqtt, on_ready=None):
             ok, frame = cap.read()
             if not ok:
                 continue
-            frame = apply_orientation(frame, rotate, flip)
+            frame = apply_orientation(frame, shared.data["rotate"], shared.data["flip"])
             h, w = frame.shape[:2]
             faces = rec.detect(frame)
             speaker, conf = best_match(faces, template, threshold)
@@ -227,11 +230,44 @@ def vision_worker(cfg, use_mqtt, on_ready=None):
 # Flask app
 # --------------------------------------------------------------------------- #
 app = Flask(__name__)
+CFG = None  # set in main(); used by /api/save
 
 
 @app.route("/")
 def index():
     return render_template("dashboard.html")
+
+
+@app.route("/api/rotate", methods=["POST"])
+def api_rotate():
+    with shared.lock:
+        shared.data["rotate"] = (shared.data["rotate"] + 90) % 360
+        r = shared.data["rotate"]
+    return jsonify(ok=True, rotate=r)
+
+
+@app.route("/api/flip", methods=["POST"])
+def api_flip():
+    with shared.lock:
+        shared.data["flip"] = not shared.data["flip"]
+        f = shared.data["flip"]
+    return jsonify(ok=True, flip=f)
+
+
+@app.route("/api/save", methods=["POST"])
+def api_save():
+    with shared.lock:
+        r, f = shared.data["rotate"], shared.data["flip"]
+    try:
+        with open(CFG.path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        data.setdefault("camera", {})["rotate"] = int(r)
+        data["camera"]["flip_horizontal"] = bool(f)
+        with open(CFG.path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        return jsonify(ok=True, rotate=r, flip=f)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @app.route("/api/state")
@@ -258,9 +294,14 @@ def main():
     ap.add_argument("--config", default=None)
     ap.add_argument("--no-mqtt", action="store_true")
     ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--camera", type=int, default=None, help="override camera index")
     args = ap.parse_args()
 
+    global CFG
     cfg = Config.load(args.config)
+    CFG = cfg
+    if args.camera is not None:
+        cfg["camera"]["index"] = args.camera
 
     # The camera/vision loop runs on the MAIN thread (Windows MSMF/DirectShow
     # capture uses COM and hangs in worker threads). Flask runs in a daemon

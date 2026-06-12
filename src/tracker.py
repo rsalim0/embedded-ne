@@ -60,7 +60,11 @@ class Tracker:
             err = -err
 
         if abs(err) <= self.deadband:
-            return Command("CENTER", "CENTERED", self._ema)
+            # Speaker is centered in frame -> lock on: FREEZE the servo where it
+            # is (STOP = hold current angle), do NOT snap the pan to 90deg.
+            # Emitting "CENTER" here would yank the camera off the locked
+            # speaker back to mechanical center; "STOP" keeps it aimed.
+            return Command("STOP", "CENTERED", self._ema)
 
         # Proportional step (deg), scaled by how far outside the deadband we are.
         span = max(1e-6, 1.0 - self.deadband)

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>BENAX · Speaker Tracking Dashboard</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3240;
+    --txt:#e6edf3; --dim:#8b949e; --green:#2ea043; --amber:#d29922;
+    --red:#da3633; --blue:#388bfd; --accent:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--txt)}
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
+  header .sub{color:var(--dim);font-size:12px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .wrap{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
+            margin:0;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .feed{position:relative;background:#000;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+  .feed img{width:100%;height:100%;object-fit:contain}
+  .badge{position:absolute;top:12px;left:12px;padding:6px 12px;border-radius:20px;
+         font-weight:700;font-size:13px;letter-spacing:.5px}
+  .badge.lock{background:rgba(46,160,67,.18);color:#3fb950;border:1px solid #3fb950}
+  .badge.search{background:rgba(210,153,34,.18);color:#e3b341;border:1px solid #e3b341}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  .card{background:var(--panel2);padding:14px 16px}
+  .card .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .card .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .v.small{font-size:16px}
+  .gaugewrap{padding:14px 16px;background:var(--panel2)}
+  .gauge{position:relative;height:14px;background:#0d1117;border-radius:8px;border:1px solid var(--line);overflow:hidden}
+  .gauge .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--dim)}
+  .gauge .dead{position:absolute;top:0;bottom:0;background:rgba(56,139,253,.12)}
+  .gauge .mark{position:absolute;top:-3px;width:6px;height:20px;border-radius:3px;background:var(--accent);
+               transition:left .15s ease}
+  .glabel{display:flex;justify-content:space-between;color:var(--dim);font-size:10px;margin-top:6px}
+  .servo{padding:16px;background:var(--panel2);display:flex;align-items:center;gap:18px}
+  .dial{position:relative;width:96px;height:96px;flex:0 0 auto}
+  .dial svg{transform:rotate(0deg)}
+  .dial .ang{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+             font-size:20px;font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  th{position:sticky;top:0;background:var(--panel);color:var(--dim);text-align:left;
+     font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);font-size:10px;
+     text-transform:uppercase;letter-spacing:.5px}
+  td{padding:7px 12px;border-bottom:1px solid #20262e}
+  .logbox{max-height:340px;overflow:auto}
+  .pill{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .s-MOVED_LEFT,.s-MOVED_RIGHT{background:rgba(56,139,253,.16);color:#79c0ff}
+  .s-CENTERED{background:rgba(46,160,67,.16);color:#3fb950}
+  .s-STOPPED,.s-OUT_OF_FRAME{background:rgba(139,148,158,.16);color:#b0b8c0}
+  .s-SEARCHING{background:rgba(210,153,34,.16);color:#e3b341}
+  .yes{color:#3fb950;font-weight:700}.no{color:#8b949e}
+</style>
+</head>
+<body>
+<header>
+  <span id="liveDot" class="dot"></span>
+  <h1>BENAX · Single-Speaker Tracking</h1>
+  <span class="sub" id="brokerInfo"></span>
+  <span class="sub" style="margin-left:auto" id="fps"></span>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: camera + gauge -->
+  <div>
+    <div class="panel">
+      <h2>Live Camera</h2>
+      <div class="feed">
+        <img src="/video" alt="camera feed"/>
+        <div id="badge" class="badge search">SEARCHING</div>
+      </div>
+      <div class="gaugewrap">
+        <div class="gauge">
+          <div class="dead" id="dead"></div>
+          <div class="mid"></div>
+          <div class="mark" id="mark" style="left:50%"></div>
+        </div>
+        <div class="glabel"><span>◀ speaker left</span><span>horizontal error</span><span>speaker right ▶</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: status + servo + logs -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="panel">
+      <h2>Recognition</h2>
+      <div class="cards">
+        <div class="card"><div class="k">Speaker</div><div class="v small" id="speaker">—</div></div>
+        <div class="card"><div class="k">Confidence</div><div class="v" id="conf">0.00</div></div>
+        <div class="card"><div class="k">Status</div><div class="v small" id="status">—</div></div>
+        <div class="card"><div class="k">Command → ESP</div><div class="v small" id="cmd">—</div></div>
+        <div class="card"><div class="k">Faces in frame</div><div class="v" id="faces">0</div></div>
+        <div class="card"><div class="k">MQTT</div><div class="v small" id="mqtt">—</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Servo (ESP8266)</h2>
+      <div class="servo">
+        <div class="dial">
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r="42" fill="none" stroke="#2a3240" stroke-width="6"/>
+            <line id="needle" x1="48" y1="48" x2="48" y2="12" stroke="#58a6ff" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="48" cy="48" r="5" fill="#58a6ff"/>
+          </svg>
+          <div class="ang" id="angle">—</div>
+        </div>
+        <div>
+          <div class="k" style="color:var(--dim);font-size:11px">MODE</div>
+          <div class="v small" id="mode">—</div>
+          <div class="k" style="color:var(--dim);font-size:11px;margin-top:8px">RANGE 0–180°</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Evidence Log (live)</h2>
+      <div class="logbox">
+        <table>
+          <thead><tr><th>Time</th><th>Status</th><th>Cmd</th><th>Conf</th><th>Faces</th><th>Lock</th></tr></thead>
+          <tbody id="logs"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function fmtMqtt(on){return on?'<span class="yes">● connected</span>':'<span class="no">○ offline</span>';}
+async function tick(){
+  try{
+    const r = await fetch('/api/state'); const {state:s, logs} = await r.json();
+    document.getElementById('liveDot').className = 'dot' + (s.running?' on':'');
+    document.getElementById('brokerInfo').textContent = 'broker ' + s.broker + ' · threshold ' + s.threshold;
+    document.getElementById('fps').textContent = s.fps + ' fps';
+    document.getElementById('speaker').textContent = s.speaker_id;
+    document.getElementById('conf').textContent = (s.confidence||0).toFixed(2);
+    document.getElementById('conf').style.color = s.recognized ? '#3fb950' : '#8b949e';
+    document.getElementById('status').textContent = s.status;
+    document.getElementById('cmd').textContent = s.command;
+    document.getElementById('faces').textContent = s.num_faces;
+    document.getElementById('mqtt').innerHTML = fmtMqtt(s.mqtt);
+
+    const badge = document.getElementById('badge');
+    if(s.recognized){badge.className='badge lock';badge.textContent='LOCKED';}
+    else{badge.className='badge search';badge.textContent=s.status==='SEARCHING'?'SEARCHING':'NO SPEAKER';}
+
+    // error gauge (-1..1) -> 0..100%
+    const e = Math.max(-1,Math.min(1, s.error_norm||0));
+    document.getElementById('mark').style.left = (50 + e*50) + '%';
+    // deadband shading
+    const db = 0.08;
+    const dead = document.getElementById('dead');
+    dead.style.left = (50 - db*50) + '%'; dead.style.width = (db*100) + '%';
+
+    // servo dial
+    if(s.esp_angle!=null){
+      document.getElementById('angle').textContent = s.esp_angle + '°';
+      document.getElementById('mode').textContent = s.esp_mode;
+      const a = (s.esp_angle/180)*180 - 90;            // 0..180 -> -90..+90
+      const rad = (a-90)*Math.PI/180;                   // 0deg points up
+      const x = 48 + 36*Math.cos(rad), y = 48 + 36*Math.sin(rad);
+      const n = document.getElementById('needle'); n.setAttribute('x2',x.toFixed(1)); n.setAttribute('y2',y.toFixed(1));
+    }
+
+    const tb = document.getElementById('logs');
+    tb.innerHTML = logs.map(l=>`<tr>
+      <td>${l.t}</td>
+      <td><span class="pill s-${l.status}">${l.status}</span></td>
+      <td>${l.command}</td>
+      <td>${(l.confidence||0).toFixed(2)}</td>
+      <td>${l.faces}</td>
+      <td>${l.recognized?'<span class="yes">✓</span>':'<span class="no">—</span>'}</td>
+    </tr>`).join('');
+  }catch(e){ document.getElementById('liveDot').className='dot'; }
+}
+setInterval(tick, 400); tick();
+</script>
+</body>
+</html>

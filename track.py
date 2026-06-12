@@ -77,6 +77,19 @@ def draw_hud(frame, faces, speaker, conf, cmd, recognized, mqtt_ok, fps):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
 
 
+def _save_orientation(cfg, rotate, flip):
+    """Persist the live-chosen rotate/flip back into config.json."""
+    try:
+        with open(cfg.path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data.setdefault("camera", {})["rotate"] = int(rotate)
+        data["camera"]["flip_horizontal"] = bool(flip)
+        with open(cfg.path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:  # noqa: BLE001
+        print(f"[track] could not save orientation: {e}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Single-speaker tracking + MQTT motor control.")
     ap.add_argument("--config", default=None)
@@ -174,10 +187,21 @@ def main():
 
             mqtt_ok = pub.connected if pub is not None else False
             draw_hud(frame, faces, speaker, conf, cmd, recognized, mqtt_ok, fps)
+            cv2.putText(frame, f"rotate={rotate}  [r]otate  [f]lip:{int(flip)}  [s]ave  [q]uit",
+                        (10, h - 14), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1)
             cv2.imshow("BENAX Speaker Tracking", frame)
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord("q"), ord("Q")):
                 break
+            elif key in (ord("r"), ord("R")):
+                rotate = (rotate + 90) % 360
+                print(f"[track] rotate -> {rotate}")
+            elif key in (ord("f"), ord("F")):
+                flip = not flip
+                print(f"[track] flip -> {flip}")
+            elif key in (ord("s"), ord("S")):
+                _save_orientation(cfg, rotate, flip)
+                print(f"[track] saved rotate={rotate} flip={flip} to config.json")
     finally:
         if pub is not None:
             pub.publish_command("STOP")

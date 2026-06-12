@@ -9,9 +9,11 @@
     "qos": 0
   },
   "camera": {
-    "index": 0,
+    "index": 1,
     "width": 1280,
     "height": 720,
+    "backend": "msmf",
+    "rotate": 0,
     "flip_horizontal": true
   },
   "recognition": {

@@ -20,6 +20,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 
+from src.camera import apply_orientation, open_capture
 from src.config import Config
 from src.logger import EvidenceLogger
 from src.mqtt_client import MqttPublisher
@@ -112,11 +113,13 @@ def main():
         if not pub.connect(timeout=5.0):
             print("[track] WARNING: MQTT not connected yet — will keep retrying in background.")
 
-    cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.get("camera.width", 1280))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.get("camera.height", 720))
-    if not cap.isOpened():
-        raise SystemExit(f"[track] cannot open camera {cam_index}")
+    cap = open_capture(
+        cam_index,
+        cfg.get("camera.width", 1280),
+        cfg.get("camera.height", 720),
+        backend=cfg.get("camera.backend", "msmf"),
+    )
+    rotate = int(cfg.get("camera.rotate", 0))
 
     last_pub = 0.0
     last_cmd_token = None
@@ -127,8 +130,7 @@ def main():
             ok, frame = cap.read()
             if not ok:
                 continue
-            if flip:
-                frame = cv2.flip(frame, 1)
+            frame = apply_orientation(frame, rotate, flip)
             h, w = frame.shape[:2]
 
             faces = rec.detect(frame)

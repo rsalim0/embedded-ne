@@ -26,6 +26,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from src.camera import apply_orientation, open_capture
 from src.config import Config
 from src.recognizer import build_recognizer
 
@@ -55,11 +56,13 @@ def main():
         model_pack=cfg.get("recognition.model_pack", "buffalo_s"),
     )
 
-    cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.get("camera.width", 1280))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.get("camera.height", 720))
-    if not cap.isOpened():
-        raise SystemExit(f"[enroll] cannot open camera {cam_index}")
+    cap = open_capture(
+        cam_index,
+        cfg.get("camera.width", 1280),
+        cfg.get("camera.height", 720),
+        backend=cfg.get("camera.backend", "msmf"),
+    )
+    rotate = int(cfg.get("camera.rotate", 0))
 
     embeddings: list[np.ndarray] = []
     auto = True
@@ -72,8 +75,7 @@ def main():
         ok, frame = cap.read()
         if not ok:
             continue
-        if flip:
-            frame = cv2.flip(frame, 1)
+        frame = apply_orientation(frame, rotate, flip)
         faces = rec.detect(frame)
         face = largest_face(faces)
         single = face is not None and len(faces) == 1

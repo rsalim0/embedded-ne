@@ -20,7 +20,9 @@ See **`docs/pipeline.md`** (Recognize→Track→Command flowchart) and
 embedded/
 ├─ config.json                 # all tunables: MQTT, camera, thresholds, tracking
 ├─ enroll.py                   # (a) speaker enrollment → data/speaker_profile.json
-├─ track.py                    # (b–e) recognize → track → command → MQTT → log
+├─ track.py                    # (b–e) recognize → track → command → MQTT → log (OpenCV window)
+├─ dashboard.py                # same pipeline as track.py, served as a live web UI (Flask)
+├─ templates/dashboard.html    # the dashboard front-end
 ├─ servo_test.py               # bring-up: drive the servo over MQTT, no camera needed
 ├─ requirements.txt
 ├─ src/
@@ -139,6 +141,29 @@ Vision-only dry run (no broker/board needed):
 python track.py --no-mqtt
 ```
 
+### Web dashboard (Flask) — alternative to the OpenCV window
+
+`dashboard.py` runs the **same** capture → recognize → track → command → MQTT → log
+pipeline as `track.py`, but renders to a browser instead of an OpenCV window: live
+MJPEG feed, recognition/servo/log panels, and buttons to rotate/flip the camera and
+save the orientation back to `config.json`. Run it **instead of** `track.py` (both
+need the camera).
+
+```powershell
+python dashboard.py                 # then open http://localhost:5000
+python dashboard.py --no-mqtt       # vision only, no broker/board
+python dashboard.py --port 8000     # serve on a different port
+python dashboard.py --camera 1      # override config.json camera.index
+```
+
+It serves on `0.0.0.0`, so other devices on the LAN can watch at
+`http://<PC-LAN-IP>:5000`. Stop it with **Ctrl+C** in the terminal.
+
+> **Smoothness:** the feed streams every captured frame while face detection (the
+> expensive step) runs every Nth frame — set by `recognition.detect_every` in
+> `config.json` (default `2`). Raise it (e.g. `3`–`4`) for a smoother feed on slow
+> CPUs; set `1` to detect on every frame.
+
 ---
 
 ## 4. Quick MQTT verification (no camera)
@@ -194,6 +219,7 @@ These logs are the operational evidence for the demonstration scenarios below.
 | key | effect |
 |-----|--------|
 | `recognition.similarity_threshold` | higher = stricter lock (fewer false accepts). 0.40 default; raise if other people get accepted, lower if the real speaker drops out. |
+| `recognition.detect_every` | run detection every Nth frame (dashboard feed smoothness). 2 default; raise for a smoother feed on slow CPUs, 1 = every frame. |
 | `tracking.deadband_frac` | central dead-zone (no motion) as a fraction of half-width. |
 | `tracking.max_step_deg` / `min_step_deg` | per-command servo step range. |
 | `tracking.smoothing` | 0–1 jitter filter; higher = smoother but slower. |

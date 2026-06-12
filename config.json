@@ -9,7 +9,7 @@
     "qos": 0
   },
   "camera": {
-    "index": 1,
+    "index": 0,
     "width": 1280,
     "height": 720,
     "backend": "msmf",
@@ -19,6 +19,7 @@
   "recognition": {
     "similarity_threshold": 0.40,
     "det_size": 640,
+    "detect_every": 2,
     "model_pack": "buffalo_s",
     "profile_path": "data/speaker_profile.json",
     "speaker_name": "speaker"

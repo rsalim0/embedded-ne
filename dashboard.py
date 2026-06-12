@@ -174,7 +174,14 @@ def vision_worker(cfg, use_mqtt, on_ready=None):
 
     shared.update(threshold=threshold, broker=broker, status="RUNNING")
 
+    # Detection is the expensive step (ArcFace on CPU). Run it every Nth frame and
+    # reuse the last result in between; capture + annotate + JPEG stream still run
+    # every frame, so the displayed feed stays smooth instead of stalling at the
+    # detector's rate. detect_every=1 restores the old detect-every-frame behaviour.
+    detect_every = max(1, int(cfg.get("recognition.detect_every", 2)))
     last_pub, last_token, t_prev, fps = 0.0, None, time.time(), 0.0
+    frame_i = 0
+    faces, speaker, conf, recognized, cmd = [], None, 0.0, False, None
     try:
         while shared.data.get("running", True):
             ok, frame = cap.read()
@@ -182,26 +189,29 @@ def vision_worker(cfg, use_mqtt, on_ready=None):
                 continue
             frame = apply_orientation(frame, shared.data["rotate"], shared.data["flip"])
             h, w = frame.shape[:2]
-            faces = rec.detect(frame)
-            speaker, conf = best_match(faces, template, threshold)
-            recognized = speaker is not None
-            face_cx = speaker.center[0] if recognized else None
-            cmd = tracker.update(face_cx, w)
-
             now = time.time()
-            if now - last_pub >= publish_dt or cmd.token != last_token:
-                if pub is not None:
-                    pub.publish_command(cmd.token)
-                logger.log(speaker_id=speaker_id, recognized=recognized, confidence=conf,
-                           num_faces=len(faces), error_norm=cmd.error_norm,
-                           status=cmd.status, command=cmd.token)
-                shared.add_log({
-                    "t": datetime.now().strftime("%H:%M:%S"),
-                    "status": cmd.status, "command": cmd.token,
-                    "confidence": round(conf, 3), "faces": len(faces),
-                    "recognized": recognized,
-                })
-                last_pub, last_token = now, cmd.token
+
+            if frame_i % detect_every == 0:
+                faces = rec.detect(frame)
+                speaker, conf = best_match(faces, template, threshold)
+                recognized = speaker is not None
+                face_cx = speaker.center[0] if recognized else None
+                cmd = tracker.update(face_cx, w)
+
+                if now - last_pub >= publish_dt or cmd.token != last_token:
+                    if pub is not None:
+                        pub.publish_command(cmd.token)
+                    logger.log(speaker_id=speaker_id, recognized=recognized, confidence=conf,
+                               num_faces=len(faces), error_norm=cmd.error_norm,
+                               status=cmd.status, command=cmd.token)
+                    shared.add_log({
+                        "t": datetime.now().strftime("%H:%M:%S"),
+                        "status": cmd.status, "command": cmd.token,
+                        "confidence": round(conf, 3), "faces": len(faces),
+                        "recognized": recognized,
+                    })
+                    last_pub, last_token = now, cmd.token
+            frame_i += 1
 
             dt = now - t_prev
             t_prev = now

@@ -6,3 +6,4 @@ paho-mqtt>=2.1
 mediapipe>=0.10          # fallback face detection + landmark alignment
 onnxruntime>=1.16        # ArcFace embedding runtime
 insightface>=0.7.3       # primary recognizer (ArcFace buffalo_l). Optional — fallback used if absent.
+flask>=3.0               # web dashboard (dashboard.py)

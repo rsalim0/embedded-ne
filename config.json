@@ -13,7 +13,7 @@
     "width": 1280,
     "height": 720,
     "backend": "msmf",
-    "rotate": 180,
+    "rotate": 270,
     "flip_horizontal": false
   },
   "recognition": {

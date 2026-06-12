@@ -1,0 +1,8 @@
+# BENAX Single-Speaker Face Tracking — PC AI pipeline
+# Python 3.10+  (tested on 3.13)
+opencv-python>=4.8
+numpy>=1.24
+paho-mqtt>=2.1
+mediapipe>=0.10          # fallback face detection + landmark alignment
+onnxruntime>=1.16        # ArcFace embedding runtime
+insightface>=0.7.3       # primary recognizer (ArcFace buffalo_l). Optional — fallback used if absent.

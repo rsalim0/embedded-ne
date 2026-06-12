@@ -1,0 +1,37 @@
+{
+  "mqtt": {
+    "host": "192.168.1.100",
+    "port": 1884,
+    "command_topic": "benax/camera/command",
+    "status_topic": "benax/camera/status",
+    "client_id_pc": "benax-pc",
+    "keepalive": 30,
+    "qos": 0
+  },
+  "camera": {
+    "index": 0,
+    "width": 1280,
+    "height": 720,
+    "flip_horizontal": true
+  },
+  "recognition": {
+    "similarity_threshold": 0.40,
+    "det_size": 640,
+    "model_pack": "buffalo_s",
+    "profile_path": "data/speaker_profile.json",
+    "speaker_name": "speaker"
+  },
+  "tracking": {
+    "deadband_frac": 0.08,
+    "max_step_deg": 6,
+    "min_step_deg": 1,
+    "smoothing": 0.5,
+    "invert_direction": false,
+    "lost_grace_frames": 12,
+    "scan_after_frames": 24,
+    "publish_hz": 12
+  },
+  "logging": {
+    "dir": "logs"
+  }
+}

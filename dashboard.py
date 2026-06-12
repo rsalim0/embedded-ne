@@ -109,7 +109,7 @@ def annotate(frame, faces, speaker, conf, status, recognized):
     return frame
 
 
-def vision_worker(cfg, use_mqtt):
+def vision_worker(cfg, use_mqtt, on_ready=None):
     threshold = float(cfg.get("recognition.similarity_threshold", 0.40))
     cam_index = cfg.get("camera.index", 0)
     rotate = int(cfg.get("camera.rotate", 0))
@@ -119,6 +119,8 @@ def vision_worker(cfg, use_mqtt):
     profile_path = cfg.abspath(cfg.get("recognition.profile_path", "data/speaker_profile.json"))
     if not profile_path.exists():
         shared.update(status="NO PROFILE - run enroll.py", running=False)
+        if on_ready:
+            on_ready()
         return
     with open(profile_path, "r", encoding="utf-8") as f:
         prof = json.load(f)
@@ -130,6 +132,16 @@ def vision_worker(cfg, use_mqtt):
                            model_pack=cfg.get("recognition.model_pack", "buffalo_s"))
     tracker = Tracker(cfg)
     logger = EvidenceLogger(cfg.abspath(cfg.get("logging.dir", "logs")))
+
+    # Open the camera BEFORE starting any background threads (Flask, paho loop):
+    # on Windows the MSMF/DirectShow COM init can hang if other threads are
+    # already running when the capture is created.
+    cap = open_capture(cam_index, cfg.get("camera.width", 1280), cfg.get("camera.height", 720),
+                       backend=cfg.get("camera.backend", "msmf"))
+
+    # Camera is up — now it's safe to start the HTTP server thread.
+    if on_ready:
+        on_ready()
 
     pub = None
     sub = None
@@ -157,8 +169,6 @@ def vision_worker(cfg, use_mqtt):
         except Exception:
             sub = None
 
-    cap = open_capture(cam_index, cfg.get("camera.width", 1280), cfg.get("camera.height", 720),
-                       backend=cfg.get("camera.backend", "msmf"))
     shared.update(threshold=threshold, broker=broker, status="RUNNING")
 
     last_pub, last_token, t_prev, fps = 0.0, None, time.time(), 0.0
@@ -251,11 +261,40 @@ def main():
     args = ap.parse_args()
 
     cfg = Config.load(args.config)
-    worker = threading.Thread(target=vision_worker, args=(cfg, not args.no_mqtt), daemon=True)
-    worker.start()
 
-    print(f"[dashboard] open  http://localhost:{args.port}  in your browser")
-    app.run(host="0.0.0.0", port=args.port, threaded=True, debug=False, use_reloader=False)
+    # The camera/vision loop runs on the MAIN thread (Windows MSMF/DirectShow
+    # capture uses COM and hangs in worker threads). Flask runs in a daemon
+    # thread, but only AFTER the camera is open (on_ready), so no background
+    # thread is alive while the capture is being created.
+    started = {"v": False}
+
+    def start_server():
+        if started["v"]:
+            return
+        started["v"] = True
+        threading.Thread(
+            target=lambda: app.run(host="0.0.0.0", port=args.port, threaded=True,
+                                   debug=False, use_reloader=False),
+            daemon=True).start()
+        print(f"[dashboard] open  http://localhost:{args.port}  in your browser")
+
+    try:
+        vision_worker(cfg, not args.no_mqtt, on_ready=start_server)
+    except KeyboardInterrupt:
+        shared.update(running=False)
+        print("\n[dashboard] stopped.")
+        return
+    except SystemExit as e:
+        # e.g. camera busy/unavailable — keep serving so the UI shows the error.
+        shared.update(status=f"CAMERA ERROR: {e}", running=False)
+        print(f"[dashboard] {e}")
+    # Keep the HTTP server alive after the vision loop ends so the page (or the
+    # error status) stays reachable until the user stops it.
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[dashboard] stopped.")
 
 
 if __name__ == "__main__":

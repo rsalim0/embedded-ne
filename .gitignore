@@ -1,1 +1,27 @@
-/models
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Models — added manually per machine (large binaries, not in git)
+/models/*
+!/models/README.md
+
+# Runtime artifacts
+/logs/*
+!/logs/.gitkeep
+/data/*
+!/data/.gitkeep
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Arduino build output
+firmware/**/build/

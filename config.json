@@ -13,8 +13,8 @@
     "width": 1280,
     "height": 720,
     "backend": "msmf",
-    "rotate": 0,
-    "flip_horizontal": true
+    "rotate": 180,
+    "flip_horizontal": false
   },
   "recognition": {
     "similarity_threshold": 0.40,
